@@ -9,6 +9,7 @@ import { ENGINE_DIR, PATCHES_DIR, SRC_DIR } from '../../constants'
 import * as gitPatch from './git-patch'
 import * as copyPatch from './copy-patches'
 import * as brandingPatch from './branding-patch'
+import { importExtensionsCopy } from './extensions-copy'
 import { patchCountFile } from '../../middleware/patch-check'
 import { checkHash } from '../../utils'
 import { Task, TaskList } from '../../utils/task-list'
@@ -204,6 +205,7 @@ export async function applyPatches(): Promise<void> {
     await importInternalPatch(),
     canDoBrandingPatch ? importMelonPatches() : undefined,
     await importFolders(),
+    importExtensionsCopy(),
     await importGitPatch(),
     await importCertPatches(),
   ].filter((task) => task !== undefined) as Task[]
