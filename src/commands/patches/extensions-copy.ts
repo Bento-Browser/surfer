@@ -140,26 +140,29 @@ async function generateExtensionJarManifest(
 
   const lines: string[] = ['browser.jar:']
 
+  // walkDirectoryTree returns paths under '.' as ABSOLUTE strings already
+  // containing the full subpath from destPath. We strip destPath off and
+  // use the result as both jar source and (prefixed) jar destination.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  function walk(tree: any, relDir: string): void {
-    if (Array.isArray(tree)) return // shouldn't hit at top-level
-    const fileEntries = tree['.'] as string[]
+  function walk(tree: any): void {
+    if (Array.isArray(tree)) return
+    const fileEntries = tree['.'] as string[] | undefined
     if (fileEntries) {
       for (const abs of fileEntries.sort()) {
-        const rel = abs.replace(patch.destPath + '/', '').replace(patch.destPath, '')
-        const dest = `builtin-addons/${patch.name}/${relDir}${rel}`.replace(/\/+/g, '/')
-        const src = relDir + rel
-        lines.push(`    ${dest} (${src})`)
+        const rel = abs
+          .replace(patch.destPath + '/', '')
+          .replace(patch.destPath, '')
+        lines.push(`    builtin-addons/${patch.name}/${rel} (${rel})`)
       }
     }
     for (const folder of Object.keys(tree)) {
       if (folder === '.') continue
       if (typeof tree[folder] === 'undefined') continue
-      walk(tree[folder], `${relDir}${folder}/`)
+      walk(tree[folder])
     }
   }
 
-  walk(files, '')
+  walk(files)
 
   writeFileSync(join(patch.destPath, 'jar.mn'), lines.join('\n') + '\n')
 }
