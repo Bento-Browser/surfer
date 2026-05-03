@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, relative } from 'node:path'
 import { copy, remove } from 'fs-extra'
 
 import { ENGINE_DIR, EXTENSIONS_DIR } from '../../constants'
@@ -84,9 +84,25 @@ export function getExtensionPatches(): IExtensionPatch[] {
 // =============================================================================
 // Per-extension copy + moz.build generation
 
+// Top-level entries (files or folders) that ship into the engine. Everything
+// else (src/, node_modules/, vite.config.ts, package.json, .ladle/, etc.) is
+// developer-side and would bloat omni.ja with megabytes of source.
+const RUNTIME_ENTRIES = new Set([
+  'manifest.json',
+  'chrome.manifest',
+  'dist',
+  'experiments',
+  'icons',
+  '_locales',
+  'background.html',
+  'background.js',
+  'options.html',
+  'popup.html',
+])
+
 async function copyExtension(patch: IExtensionPatch): Promise<void> {
   log.info(
-    `Copying extensions/${patch.name} → engine/browser/extensions/${patch.name}`
+    `Copying extensions/${patch.name} → engine/browser/extensions/${patch.name} (runtime entries only)`
   )
 
   // Wipe destination so removed source files don't linger from a prior build
@@ -95,7 +111,15 @@ async function copyExtension(patch: IExtensionPatch): Promise<void> {
   }
   await ensureDirectory(patch.destPath)
 
-  await copy(patch.srcPath, patch.destPath, { overwrite: true })
+  await copy(patch.srcPath, patch.destPath, {
+    overwrite: true,
+    filter: (src: string) => {
+      const rel = relative(patch.srcPath, src)
+      if (rel === '') return true // root itself
+      const top = rel.split(/[/\\]/)[0] ?? ''
+      return RUNTIME_ENTRIES.has(top)
+    },
+  })
   await generateExtensionMozBuild(patch)
 }
 
