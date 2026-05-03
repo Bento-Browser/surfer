@@ -5,7 +5,8 @@ import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import glob from 'tiny-glob'
 
-import { ENGINE_DIR, PATCHES_DIR, SRC_DIR } from '../../constants'
+import { existsSync } from 'node:fs'
+import { CURRENT_DIR, ENGINE_DIR, PATCHES_DIR, SRC_DIR } from '../../constants'
 import * as gitPatch from './git-patch'
 import * as copyPatch from './copy-patches'
 import * as brandingPatch from './branding-patch'
@@ -85,6 +86,19 @@ async function importGitPatch(): Promise<Task> {
     cwd: SRC_DIR,
   })
   patches = patches.map((path) => join(SRC_DIR, path))
+
+  // Bento convention: also scan <repo>/patches/ for git format-patch files
+  // (categorized as core-ui/, chrome-layout/, experiments/). This stays
+  // upstream-friendly — if patches/ doesn't exist, the original src/-only
+  // behavior is preserved.
+  const repoPatchesDir = join(CURRENT_DIR, 'patches')
+  if (existsSync(repoPatchesDir)) {
+    const repoPatches = await glob('**/*.patch', {
+      filesOnly: true,
+      cwd: repoPatchesDir,
+    })
+    patches = patches.concat(repoPatches.map((p) => join(repoPatchesDir, p)))
+  }
 
   await writeFile(patchCountFile, patches.length.toString())
 
