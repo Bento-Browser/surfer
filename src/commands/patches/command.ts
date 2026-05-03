@@ -5,7 +5,6 @@ import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import glob from 'tiny-glob'
 
-import { existsSync } from 'node:fs'
 import { CURRENT_DIR, ENGINE_DIR, PATCHES_DIR, SRC_DIR } from '../../constants'
 import * as gitPatch from './git-patch'
 import * as copyPatch from './copy-patches'
