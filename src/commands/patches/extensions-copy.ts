@@ -120,7 +120,48 @@ async function copyExtension(patch: IExtensionPatch): Promise<void> {
       return RUNTIME_ENTRIES.has(top)
     },
   })
+  await generateExtensionJarManifest(patch)
   await generateExtensionMozBuild(patch)
+}
+
+// Built-in addons in Firefox 150 are loaded from the `builtin-addons/`
+// resource path (registered in browser/extensions/jar.mn). Each extension
+// declares its own jar.mn that maps its files into builtin-addons/<name>/.
+// The AddonManager scans builtin-addons/ at startup and loads any extension
+// with a manifest.json there. This is the pattern used by webcompat,
+// formautofill, etc. — see browser/extensions/webcompat/jar.mn for the
+// canonical example.
+async function generateExtensionJarManifest(
+  patch: IExtensionPatch
+): Promise<void> {
+  log.info(`Generating jar.mn for ${patch.name}`)
+
+  const files = await walkDirectoryTree(patch.destPath)
+
+  const lines: string[] = ['browser.jar:']
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function walk(tree: any, relDir: string): void {
+    if (Array.isArray(tree)) return // shouldn't hit at top-level
+    const fileEntries = tree['.'] as string[]
+    if (fileEntries) {
+      for (const abs of fileEntries.sort()) {
+        const rel = abs.replace(patch.destPath + '/', '').replace(patch.destPath, '')
+        const dest = `builtin-addons/${patch.name}/${relDir}${rel}`.replace(/\/+/g, '/')
+        const src = relDir + rel
+        lines.push(`    ${dest} (${src})`)
+      }
+    }
+    for (const folder of Object.keys(tree)) {
+      if (folder === '.') continue
+      if (typeof tree[folder] === 'undefined') continue
+      walk(tree[folder], `${relDir}${folder}/`)
+    }
+  }
+
+  walk(files, '')
+
+  writeFileSync(join(patch.destPath, 'jar.mn'), lines.join('\n') + '\n')
 }
 
 async function generateExtensionMozBuild(
@@ -128,48 +169,20 @@ async function generateExtensionMozBuild(
 ): Promise<void> {
   log.info(`Generating moz.build for ${patch.name} (id=${patch.id})`)
 
-  const files = await walkDirectoryTree(patch.destPath)
-
-  // Mirror of generateAddonMozBuild in download/addon.ts — same wire format.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  function runTree(tree: any, parent: string): string {
-    if (Array.isArray(tree)) {
-      return tree
-        .sort()
-        .map(
-          (file: string) =>
-            `FINAL_TARGET_FILES.features["${patch.id}"]${parent} += ["${file
-              .replace(patch.destPath + '/', '')
-              .replace(patch.destPath, '')}"]`
-        )
-        .join('\n')
-    }
-
-    const current = (tree['.'] as string[])
-      .sort()
-      .map(
-        (f: string) =>
-          `FINAL_TARGET_FILES.features["${patch.id}"]${parent} += ["${f
-            .replace(patch.destPath + '/', '')
-            .replace(patch.destPath, '')}"]`
-      )
-      .join('\n')
-
-    const children = Object.keys(tree)
-      .filter((folder) => folder !== '.')
-      .filter((folder) => typeof tree[folder] !== 'undefined')
-      .map((folder) => runTree(tree[folder], `${parent}["${folder}"]`))
-      .join('\n')
-
-    return `${current}\n${children}`
-  }
-
+  // moz.build just wires the JAR manifest in. Files are registered by jar.mn
+  // (see generateExtensionJarManifest above). Keeping the FINAL_TARGET_FILES
+  // mirror as a comment for reference — used in older Firefox versions but
+  // 150 expects builtin-addons/ via JAR.
   writeFileSync(
     join(patch.destPath, 'moz.build'),
     `DEFINES["MOZ_APP_VERSION"] = CONFIG["MOZ_APP_VERSION"]
 DEFINES["MOZ_APP_MAXVERSION"] = CONFIG["MOZ_APP_MAXVERSION"]
 
-${runTree(files, '')}`
+JAR_MANIFESTS += ["jar.mn"]
+
+with Files("**"):
+    BUG_COMPONENT = ("Bento Browser", "${patch.name}")
+`
   )
 }
 
