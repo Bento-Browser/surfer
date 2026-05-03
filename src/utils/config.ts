@@ -62,12 +62,43 @@ export interface ReleaseInfo {
   }
 }
 
+export interface BrandUrls {
+  // Profile branding (firefox-branding.js)
+  homepageOverride?: string
+  homepageWelcome?: string
+  homepageWelcomeAdditional?: string
+  appUpdateManual?: string
+  appUpdateDetails?: string
+  releaseNotes?: string
+  releaseNotesAboutDialog?: string
+  releaseNotesPrompt?: string
+
+  // NSIS installer (branding.nsi)
+  infoAbout?: string
+  updateInfo?: string
+  helpLink?: string
+  manualDownload?: string
+  systemRequirements?: string
+  stubDownloadX86?: string
+  stubDownloadAMD64?: string
+  stubDownloadAArch64?: string
+}
+
+export interface BrandInstaller {
+  channel?: string
+  official?: boolean
+  certNameDownload?: string
+  certIssuerDownload?: string
+}
+
 export interface BrandInfo {
   backgroundColor: string
   brandShorterName: string
   brandShortName: string
   brandFullName: string
   release: ReleaseInfo
+  urls?: BrandUrls
+  installer?: BrandInstaller
 }
 
 export interface GithubAddonInfo {
@@ -147,11 +178,48 @@ export interface Config {
   brands: Record<string, BrandInfo>
 }
 
+// Defaults preserve historical Zen Browser behavior so existing surfer.json
+// files keep working unchanged. New forks should override `urls` and
+// `installer` in their brand config.
+export const defaultBrandUrls: Required<BrandUrls> = {
+  homepageOverride: 'https://zen-browser.app/whatsnew?v=%VERSION%',
+  homepageWelcome: 'https://zen-browser.app/welcome/',
+  homepageWelcomeAdditional: 'https://zen-browser.app/privacy-policy/',
+  appUpdateManual: 'https://zen-browser.app/download/',
+  appUpdateDetails: 'https://zen-browser.app/release-notes/latest/',
+  releaseNotes: 'https://zen-browser.app/whatsnew/',
+  releaseNotesAboutDialog:
+    'https://www.zen-browser.app/release-notes/%VERSION%/',
+  releaseNotesPrompt: 'https://zen-browser.app/release-notes/%VERSION%/',
+  infoAbout: 'https://zen-browser.app',
+  updateInfo: 'https://zen-browser.app/release-notes/${AppVersion}',
+  helpLink: 'https://github.com/zen-browser/desktop/issues',
+  manualDownload: 'https://zen-browser.app/download',
+  systemRequirements:
+    'https://www.mozilla.org/firefox/system-requirements/',
+  stubDownloadX86:
+    'https://download.mozilla.org/?os=win&lang=${AB_CD}&product=firefox-latest',
+  stubDownloadAMD64:
+    'https://download.mozilla.org/?os=win64&lang=${AB_CD}&product=firefox-latest',
+  stubDownloadAArch64:
+    'https://download.mozilla.org/?os=win64-aarch64&lang=${AB_CD}&product=firefox-latest',
+}
+
+export const defaultBrandInstaller: Required<BrandInstaller> = {
+  channel: 'stable',
+  official: true,
+  certNameDownload: 'Mozilla Corporation',
+  certIssuerDownload:
+    'DigiCert Trusted G4 Code Signing RSA4096 SHA384 2021 CA1',
+}
+
 export const defaultBrandsConfig = {
   backgroundColor: '#2B2A33',
   brandShorterName: 'Nightly',
   brandShortName: 'Nightly',
   brandFullName: 'Nightly',
+  urls: defaultBrandUrls,
+  installer: defaultBrandInstaller,
 }
 
 export const defaultLicenseConfig: LicenseConfig = {

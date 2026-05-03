@@ -83,12 +83,20 @@ function checkForFaults(name: string, configPath: string) {
 }
 
 function constructConfig(name: string) {
+  const userBrand = config.brands[name] ?? ({} as Partial<typeof defaultBrandsConfig>)
   return {
     brandingGenericName: config.name,
     brandingVendor: config.vendor,
 
     ...defaultBrandsConfig,
-    ...config.brands[name],
+    ...userBrand,
+    // Deep-merge URLs and installer so a partial override in surfer.json
+    // doesn't blank out fields the user didn't specify.
+    urls: { ...defaultBrandsConfig.urls, ...(userBrand.urls ?? {}) },
+    installer: {
+      ...defaultBrandsConfig.installer,
+      ...(userBrand.installer ?? {}),
+    },
   }
 }
 
@@ -187,6 +195,8 @@ async function copyMozFiles(
     brandFullName: string
     brandingGenericName: string
     brandingVendor: string
+    urls: Required<import('../../utils/config').BrandUrls>
+    installer: Required<import('../../utils/config').BrandInstaller>
   }
 ) {
   const firefoxBrandingDirectoryContents = await walkDirectory(BRANDING_FF)
@@ -283,8 +293,12 @@ function configureBrandingNsis(
     brandFullName: string
     brandingGenericName: string
     brandingVendor: string
+    urls: Required<import('../../utils/config').BrandUrls>
+    installer: Required<import('../../utils/config').BrandInstaller>
   }
 ) {
+  const u = brandingConfig.urls
+  const inst = brandingConfig.installer
   writeFileSync(
     brandingNsis,
     `
@@ -301,25 +315,25 @@ function configureBrandingNsis(
 !define BrandFullNameInternal "${brandingConfig.brandFullName}"
 !define BrandFullName         "${brandingConfig.brandFullName}"
 !define CompanyName           "${brandingConfig.brandingVendor}"
-!define URLInfoAbout          "https://zen-browser.app"
-!define URLUpdateInfo         "https://zen-browser.app/release-notes/\${AppVersion}"
-!define HelpLink              "https://github.com/zen-browser/desktop/issues"
+!define URLInfoAbout          "${u.infoAbout}"
+!define URLUpdateInfo         "${u.updateInfo}"
+!define HelpLink              "${u.helpLink}"
 
 
 ; The OFFICIAL define is a workaround to support different urls for Release and
 ; Stable since they share the same branding when building with other branches that
 ; set the update channel to stable.
-!define OFFICIAL
-!define URLStubDownloadX86 "https://download.mozilla.org/?os=win&lang=\${AB_CD}&product=firefox-latest"
-!define URLStubDownloadAMD64 "https://download.mozilla.org/?os=win64&lang=\${AB_CD}&product=firefox-latest"
-!define URLStubDownloadAArch64 "https://download.mozilla.org/?os=win64-aarch64&lang=\${AB_CD}&product=firefox-latest"
-!define URLManualDownload "https://zen-browser.app/download"
-!define URLSystemRequirements "https://www.mozilla.org/firefox/system-requirements/"
-!define Channel "stable"
+${inst.official ? '!define OFFICIAL' : '; !define OFFICIAL  ; disabled via brand.installer.official'}
+!define URLStubDownloadX86 "${u.stubDownloadX86}"
+!define URLStubDownloadAMD64 "${u.stubDownloadAMD64}"
+!define URLStubDownloadAArch64 "${u.stubDownloadAArch64}"
+!define URLManualDownload "${u.manualDownload}"
+!define URLSystemRequirements "${u.systemRequirements}"
+!define Channel "${inst.channel}"
 
 # The installer's certificate name and issuer expected by the stub installer
-!define CertNameDownload   "Mozilla Corporation"
-!define CertIssuerDownload "DigiCert Trusted G4 Code Signing RSA4096 SHA384 2021 CA1"
+!define CertNameDownload   "${inst.certNameDownload}"
+!define CertIssuerDownload "${inst.certIssuerDownload}"
 
 # Dialog units are used so the UI displays correctly with the system's DPI
 # settings.
@@ -400,8 +414,10 @@ function configureProfileBranding(
     brandFullName: string
     brandingGenericName: string
     brandingVendor: string
+    urls: Required<import('../../utils/config').BrandUrls>
   }
 ) {
+  const u = brandingConfig.urls
   writeFileSync(
     brandingPath,
     `
@@ -409,9 +425,9 @@ function configureProfileBranding(
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-pref("startup.homepage_override_url", "https://zen-browser.app/whatsnew?v=%VERSION%");
-pref("startup.homepage_welcome_url", "https://zen-browser.app/welcome/");
-pref("startup.homepage_welcome_url.additional", "https://zen-browser.app/privacy-policy/");
+pref("startup.homepage_override_url", "${u.homepageOverride}");
+pref("startup.homepage_welcome_url", "${u.homepageWelcome}");
+pref("startup.homepage_welcome_url.additional", "${u.homepageWelcomeAdditional}");
 
 // Give the user x seconds to react before showing the big UI. default=192 hours
 pref("app.update.promptWaitTime", 691200);
@@ -420,11 +436,11 @@ pref("app.update.promptWaitTime", 691200);
 // app.update.url.details: a default value for the "More information about this
 // update" link supplied in the "An update is available" page of the update
 // wizard.
-pref("app.update.url.manual", "https://zen-browser.app/download/");
-pref("app.update.url.details", "https://zen-browser.app/release-notes/latest/");
-pref("app.releaseNotesURL", "https://zen-browser.app/whatsnew/");
-pref("app.releaseNotesURL.aboutDialog", "https://www.zen-browser.app/release-notes/%VERSION%/");
-pref("app.releaseNotesURL.prompt", "https://zen-browser.app/release-notes/%VERSION%/");
+pref("app.update.url.manual", "${u.appUpdateManual}");
+pref("app.update.url.details", "${u.appUpdateDetails}");
+pref("app.releaseNotesURL", "${u.releaseNotes}");
+pref("app.releaseNotesURL.aboutDialog", "${u.releaseNotesAboutDialog}");
+pref("app.releaseNotesURL.prompt", "${u.releaseNotesPrompt}");
 
 // Number of usages of the web console.
 // If this is less than 5, then pasting code into the web console is disabled

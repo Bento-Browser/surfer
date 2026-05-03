@@ -1,7 +1,7 @@
 {
-  "name": "@zen-browser/surfer",
-  "version": "1.14.6",
-  "description": "Simplifying building firefox forks!",
+  "name": "@bento-browser/surfer",
+  "version": "1.14.6-bento.1",
+  "description": "Bento Browser fork of Zen Surfer with templated brand URLs.",
   "main": "index.js",
   "bin": {
     "surfer": "./dist/index.js"
